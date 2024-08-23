@@ -1,10 +1,11 @@
-mod ray;
+mod hittable;
 
 use std::fs::File;
 use std::io::Write;
 use std::time::{Instant};
 use indicatif::{ProgressBar};
 use glam::{DVec3};
+use crate::hittable::Sphere;
 
 pub type Color = DVec3;
 pub type IColor = glam::IVec3;
@@ -41,6 +42,12 @@ fn main() {
     let image_size = get_image_size(aspect_ratio, image_width).expect("image_height can't be less than 1");
     let image_height = image_size.1;
 
+    //world
+    let sphere = Box::new(hittable::Sphere::new(DVec3::new(0., 0., -1.), 0.5));
+    let sphere2 = Box::new(hittable::Sphere::new(DVec3::new(0., -100.5, -1.), 100.));
+    let mut world : Box<hittable::hittable_list> = Box::new(hittable::hittable_list::new());
+    world.add(sphere);
+    world.add(sphere2);
 
     //camera
     let focal_length = 1.0;
@@ -70,9 +77,9 @@ fn main() {
         for i in 0..image_width {
             let pixel_center = pixel00_loc + (i as f64* pixel_delta_u) + (j as f64 * pixel_delta_v);
             let ray_direction = pixel_center - camera_center;
-            let r = ray::Ray::new(camera_center, ray_direction);
+            let r = hittable::Ray::new(camera_center, ray_direction);
 
-            let color_pixel_color = ray::ray_color(&r);
+            let color_pixel_color = hittable::ray_color(&r, &world);
             image_data += &write_color(&color_pixel_color);
         }
     }
