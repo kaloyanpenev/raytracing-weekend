@@ -1,6 +1,7 @@
 use std::time::Instant;
 use glam::DVec3;
 use indicatif::ProgressBar;
+use rand::Rng;
 use crate::geo::ray::Ray;
 use crate::Color;
 use crate::geo::hittable::Hittable;
@@ -10,11 +11,12 @@ pub struct Camera {
     image_size: (i32, i32),
     camera_center: DVec3,
     pixel_delta_uv: (DVec3, DVec3),
-    pixel00_loc: DVec3
+    pixel00_loc: DVec3,
+    samples_per_pixel: i32
 }
 
 impl Camera {
-    pub fn new(aspect_ratio: f64, image_width: i32) -> Self{
+    pub fn new(aspect_ratio: f64, image_width: i32, samples_per_pixel: i32) -> Self{
         // image
         let image_size = Self::get_image_size(aspect_ratio, image_width).expect("image_height can't be less than 1");
 
@@ -33,7 +35,7 @@ impl Camera {
         let viewport_upper_left = camera_center - DVec3::new(0., 0., focal_length) - viewport_u / 2. - viewport_v / 2.;
         let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
-        Self{image_size, camera_center, pixel_delta_uv: (pixel_delta_u, pixel_delta_v), pixel00_loc}
+        Self{image_size, camera_center, pixel_delta_uv: (pixel_delta_u, pixel_delta_v), pixel00_loc, samples_per_pixel}
     }
 
     fn ray_color(r: &Ray, world: &impl Hittable) -> Color {
@@ -61,12 +63,13 @@ impl Camera {
         for j in 0..self.image_size.1 {
             pb.inc(1);
             for i in 0..self.image_size.0 {
-                let pixel_center = self.pixel00_loc + (i as f64 * self.pixel_delta_uv.0) + (j as f64 * self.pixel_delta_uv.1);
-                let ray_direction = pixel_center - self.camera_center;
-                let r = Ray::new(self.camera_center, ray_direction);
+                let mut pixel_color = Color::ZERO;
+                for _ in 0..self.samples_per_pixel {
+                    let r = self.get_ray(i, j);
+                    pixel_color += Self::ray_color(&r, &*world);
+                }
 
-                let color_pixel_color = Self::ray_color(&r, &*world);
-                image_data += &Self::write_color(&color_pixel_color);
+                image_data += &Self::write_color(&(pixel_color / self.samples_per_pixel as f64));
             }
         }
         pb.finish();
@@ -74,10 +77,25 @@ impl Camera {
         (image_data, start_time)
     }
 
-    fn write_color(col: &Color) -> String {
-        let rbyte = (255.999 * col.x) as i32;
-        let gbyte = (255.999 * col.y) as i32;
-        let bbyte = (255.999 * col.z) as i32;
+    fn sample_square() -> DVec3 {
+        // Returns the vector to a random point in the [-.5,-.5]-[+.5,+.5] unit square.
+        DVec3::new(rand::thread_rng().gen_range(0.0..1.0) - 0.5, rand::thread_rng().gen_range(0.0..1.0) - 0.5, 0.)
+    }
+    fn get_ray(&self, u_pixel: i32, v_pixel: i32) -> Ray {
+        // Construct a camera ray originating from the origin and directed at randomly sampled
+        // point around the pixel location i, j.
+        let offset = Self::sample_square();
+        let pixel_sample = self.pixel00_loc + (u_pixel as f64 + offset.x) * self.pixel_delta_uv.0 + (v_pixel as f64 + offset.y) * self.pixel_delta_uv.1;
+        let ray_origin = self.camera_center;
+        let ray_direction = pixel_sample - ray_origin;
+
+        Ray::new(ray_origin, ray_direction)
+    }
+
+    fn write_color(pixel_color: &Color) -> String {
+        let rbyte = (255.999 * pixel_color.x.clamp(0., 0.999)) as i32;
+        let gbyte = (255.999 * pixel_color.y.clamp(0., 0.999)) as i32;
+        let bbyte = (255.999 * pixel_color.z.clamp(0., 0.999)) as i32;
 
         format!("{} {} {}\n", rbyte, gbyte, bbyte)
     }
