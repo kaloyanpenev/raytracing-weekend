@@ -22,7 +22,7 @@ fn main() {
     let sphere2 = Box::new(Sphere::new(DVec3::new(0., -100.5, -1.), 100.));
     let world : Box<HittableList> = Box::new(HittableList::new(vec![sphere, sphere2]));
 
-    let camera = Camera::new(16.0 / 9.0, 1200, 100);
+    let camera = Camera::new(16.0 / 9.0, 400, 100, 10);
 
     let (image_data, start_time) = camera.render(&*world);
 

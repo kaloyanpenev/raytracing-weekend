@@ -12,11 +12,12 @@ pub struct Camera {
     camera_center: DVec3,
     pixel_delta_uv: (DVec3, DVec3),
     pixel00_loc: DVec3,
-    samples_per_pixel: i32
+    samples_per_pixel: i32,
+    max_bounces: i32
 }
 
 impl Camera {
-    pub fn new(aspect_ratio: f64, image_width: i32, samples_per_pixel: i32) -> Self{
+    pub fn new(aspect_ratio: f64, image_width: i32, samples_per_pixel: i32, max_bounces: i32) -> Self{
         // image
         let image_size = Self::get_image_size(aspect_ratio, image_width).expect("image_height can't be less than 1");
 
@@ -35,17 +36,24 @@ impl Camera {
         let viewport_upper_left = camera_center - DVec3::new(0., 0., focal_length) - viewport_u / 2. - viewport_v / 2.;
         let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
-        Self{image_size, camera_center, pixel_delta_uv: (pixel_delta_u, pixel_delta_v), pixel00_loc, samples_per_pixel}
+        Self{image_size, camera_center, pixel_delta_uv: (pixel_delta_u, pixel_delta_v), pixel00_loc, samples_per_pixel, max_bounces }
     }
 
-    fn ray_color(r: &Ray, world: &impl Hittable) -> Color {
+    fn ray_color(r: &Ray, bounce_num: i32, world: &impl Hittable) -> Color {
 
-        match world.hit(r, Interval::new(0., f64::INFINITY)) {
-            None => {}
-            Some(hit_record) => { return 0.5 * (hit_record.normal + Color::new(1., 1., 1.)) }
+        if bounce_num <= 0
+        {
+            return Color::ZERO
         }
 
+        match world.hit(r, Interval::new(0.001, f64::INFINITY)) {
+            None => {}
+            Some(hit_record) => {
+                let reflected_direction = hit_record.normal + Self::gen_random_vec_on_unit_sphere();
+                return 0.5 * Self::ray_color(&Ray::new(hit_record.pos, reflected_direction), bounce_num - 1, world) }
+        }
 
+        // terminate with a gradient
         let unit_direction = r.dir.normalize();
         let a = 0.5 * (unit_direction.y + 1.0);
         1.0 - a * Color::new(1.0, 1.0, 1.0) + a*Color::new(0.5, 0.7, 1.0)
@@ -66,7 +74,7 @@ impl Camera {
                 let mut pixel_color = Color::ZERO;
                 for _ in 0..self.samples_per_pixel {
                     let r = self.get_ray(i, j);
-                    pixel_color += Self::ray_color(&r, &*world);
+                    pixel_color += Self::ray_color(&r, self.max_bounces, &*world);
                 }
 
                 image_data += &Self::write_color(&(pixel_color / self.samples_per_pixel as f64));
@@ -81,6 +89,25 @@ impl Camera {
         // Returns the vector to a random point in the [-.5,-.5]-[+.5,+.5] unit square.
         DVec3::new(rand::thread_rng().gen_range(0.0..1.0) - 0.5, rand::thread_rng().gen_range(0.0..1.0) - 0.5, 0.)
     }
+
+    fn gen_random_vec_on_unit_sphere() -> DVec3 {
+        loop {
+            let dir = DVec3::new(rand::thread_rng().gen_range(-1.0..1.0),
+                       rand::thread_rng().gen_range(-1.0..1.0),
+                       rand::thread_rng().gen_range(-1.0..1.0));
+
+            if dir.length_squared() < 1.0 {
+                return dir.normalize();
+            }
+        }
+    }
+
+    fn gen_random_vec_in_hemisphere(hemisphere_normal: DVec3) -> DVec3 {
+        let on_unit_sphere = Self::gen_random_vec_on_unit_sphere();
+        if hemisphere_normal.dot(on_unit_sphere) > 0.0 { on_unit_sphere } else { -on_unit_sphere}
+
+    }
+
     fn get_ray(&self, u_pixel: i32, v_pixel: i32) -> Ray {
         // Construct a camera ray originating from the origin and directed at randomly sampled
         // point around the pixel location i, j.
