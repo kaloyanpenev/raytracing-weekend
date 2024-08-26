@@ -1,5 +1,5 @@
 use std::time::Instant;
-use glam::DVec3;
+use glam::{DVec3, FloatExt};
 use indicatif::ProgressBar;
 use rand::Rng;
 use crate::geo::ray::Ray;
@@ -53,10 +53,12 @@ impl Camera {
                 return 0.5 * Self::ray_color(&Ray::new(hit_record.pos, reflected_direction), bounce_num - 1, world) }
         }
 
-        // terminate with a gradient
+        // no hit: terminate ray with background color
         let unit_direction = r.dir.normalize();
-        let a = 0.5 * (unit_direction.y + 1.0);
-        1.0 - a * Color::new(1.0, 1.0, 1.0) + a*Color::new(0.5, 0.7, 1.0)
+        let alpha = unit_direction.y.remap(-1.0, 1.0, 0.0, 1.0);
+        let bottom_color = Color::new(0.5, 0.75, 1.0);
+        let top_color = Color::new(1.0, 1.0, 1.0);
+        top_color.lerp(bottom_color, alpha)
     }
 
     pub fn render(&self, world: &impl Hittable) -> (String, Instant) {
@@ -68,12 +70,12 @@ impl Camera {
         let pb = ProgressBar::new(self.image_size.1 as u64);
 
         let start_time = Instant::now();
-        for j in 0..self.image_size.1 {
+        for v in 0..self.image_size.1 {
             pb.inc(1);
-            for i in 0..self.image_size.0 {
+            for u in 0..self.image_size.0 {
                 let mut pixel_color = Color::ZERO;
                 for _ in 0..self.samples_per_pixel {
-                    let r = self.get_ray(i, j);
+                    let r = self.get_ray(u, v);
                     pixel_color += Self::ray_color(&r, self.max_bounces, &*world);
                 }
 
@@ -120,11 +122,18 @@ impl Camera {
     }
 
     fn write_color(pixel_color: &Color) -> String {
+        let pixel_color = Self::linear_to_gamma(pixel_color);
+
         let rbyte = (255.999 * pixel_color.x.clamp(0., 0.999)) as i32;
         let gbyte = (255.999 * pixel_color.y.clamp(0., 0.999)) as i32;
         let bbyte = (255.999 * pixel_color.z.clamp(0., 0.999)) as i32;
 
+
         format!("{} {} {}\n", rbyte, gbyte, bbyte)
+    }
+
+    fn linear_to_gamma(color: &Color) -> Color {
+        Color::new(color.x.sqrt().max(0.0), color.y.sqrt().max(0.0), color.z.sqrt().max(0.0))
     }
 
     fn get_image_size(aspect_ratio: f64, image_width: i32) -> Option<(i32, i32)>
