@@ -1,17 +1,20 @@
+use std::rc::Rc;
 use glam::DVec3;
-use crate::geo::hit_record::HitRecord;
+use crate::ray::hit_record::HitRecord;
 use crate::geo::hittable::Hittable;
-use crate::geo::ray::Ray;
-use crate::geo::ray_interval::Interval;
+use crate::materials::Material;
+use crate::ray::Ray;
+use crate::ray::ray_interval::Interval;
 
 pub struct Sphere {
     center: DVec3,
-    radius: f64
+    radius: f64,
+    material: Rc<dyn Material>
 }
 
 impl Sphere {
-    pub fn new(center: DVec3, radius: f64) -> Self {
-        Self { center, radius: radius.max(0.) }
+    pub fn new(center: DVec3, radius: f64, material: Rc<dyn Material>) -> Self {
+        Self { center, radius: radius.max(0.), material }
     }
 }
 
@@ -44,7 +47,7 @@ impl Hittable for Sphere {
         let (front_face, normal) = HitRecord::get_face_normal(ray, outward_normal);
 
 
-        Some(HitRecord::new(p, normal, t, front_face))
+        Some(HitRecord::new(p, normal, t, front_face, self.material.clone()))
     }
 }
 

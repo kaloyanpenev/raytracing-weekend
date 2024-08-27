@@ -1,7 +1,7 @@
-use crate::geo::hit_record::HitRecord;
+use crate::ray::hit_record::HitRecord;
 use crate::geo::hittable::Hittable;
-use crate::geo::ray::Ray;
-use crate::geo::ray_interval::Interval;
+use crate::ray::Ray;
+use crate::ray::ray_interval::Interval;
 
 pub struct HittableList {
     objects: Vec<Box<dyn Hittable>>

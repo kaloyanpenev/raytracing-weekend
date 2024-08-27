@@ -2,10 +2,10 @@ use std::time::Instant;
 use glam::{DVec3, FloatExt};
 use indicatif::ProgressBar;
 use rand::Rng;
-use crate::geo::ray::Ray;
-use crate::Color;
+use crate::ray::Ray;
 use crate::geo::hittable::Hittable;
-use crate::geo::ray_interval::Interval;
+use crate::ray::ray_interval::Interval;
+use crate::Color;
 
 pub struct Camera {
     image_size: (i32, i32),
@@ -46,11 +46,14 @@ impl Camera {
             return Color::ZERO
         }
 
-        match world.hit(r, Interval::new(0.001, f64::INFINITY)) {
-            None => {}
-            Some(hit_record) => {
-                let reflected_direction = hit_record.normal + Self::gen_random_vec_on_unit_sphere();
-                return 0.5 * Self::ray_color(&Ray::new(hit_record.pos, reflected_direction), bounce_num - 1, world) }
+        // check hit
+        if let Some(hit_record) = world.hit(r, Interval::new(0.001, f64::INFINITY)) {
+            // successful hit: scatter ray based on the material of the hit surface
+            return match hit_record.material.scatter(r, &hit_record) {
+                Some((scattered_ray, attenuation)) => { attenuation * Self::ray_color(&scattered_ray, bounce_num - 1, world) }
+                None() => { Color::ZERO } // absorbed
+            }
+
         }
 
         // no hit: terminate ray with background color
@@ -90,24 +93,6 @@ impl Camera {
     fn sample_square() -> DVec3 {
         // Returns the vector to a random point in the [-.5,-.5]-[+.5,+.5] unit square.
         DVec3::new(rand::thread_rng().gen_range(0.0..1.0) - 0.5, rand::thread_rng().gen_range(0.0..1.0) - 0.5, 0.)
-    }
-
-    fn gen_random_vec_on_unit_sphere() -> DVec3 {
-        loop {
-            let dir = DVec3::new(rand::thread_rng().gen_range(-1.0..1.0),
-                       rand::thread_rng().gen_range(-1.0..1.0),
-                       rand::thread_rng().gen_range(-1.0..1.0));
-
-            if dir.length_squared() < 1.0 {
-                return dir.normalize();
-            }
-        }
-    }
-
-    fn gen_random_vec_in_hemisphere(hemisphere_normal: DVec3) -> DVec3 {
-        let on_unit_sphere = Self::gen_random_vec_on_unit_sphere();
-        if hemisphere_normal.dot(on_unit_sphere) > 0.0 { on_unit_sphere } else { -on_unit_sphere}
-
     }
 
     fn get_ray(&self, u_pixel: i32, v_pixel: i32) -> Ray {

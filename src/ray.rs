@@ -1,3 +1,6 @@
+pub mod hit_record;
+pub mod ray_interval;
+
 use glam::DVec3;
 
 pub struct Ray {
