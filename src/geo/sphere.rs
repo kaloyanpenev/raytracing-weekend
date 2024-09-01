@@ -32,19 +32,19 @@ impl Hittable for Sphere {
 
         let sqrtd = discriminant.sqrt();
 
-        // nearest root that lies in the acceptable range w.r.t to `t`
-        let root = (h - sqrtd) / a;
-        if !ray_t.surrounds(root) {
-            let second_root = (h + sqrtd) / a;
-            if !ray_t.surrounds(second_root) {
-                return None;
-            }
+        let first_root = (h - sqrtd) / a;
+        let second_root = (h + sqrtd) / a;
+        let first_root_valid = ray_t.surrounds(&first_root);
+        let second_root_valid = ray_t.surrounds(&second_root);
+        if !first_root_valid && !second_root_valid {
+            return None;
         }
 
-        let t = root;
+        // nearest root to 0 that is above 0
+        let t = if first_root_valid { first_root } else { second_root };
         let p = ray.at(t);
         let outward_normal = (p - self.center) / self.radius;
-        let (front_face, normal) = HitRecord::get_face_normal(ray, outward_normal);
+        let (front_face, normal) = HitRecord::get_face_normal(&ray.dir, outward_normal);
 
 
         Some(HitRecord::new(p, normal, t, front_face, self.material.clone()))

@@ -43,14 +43,16 @@ impl Camera {
 
         if bounce_num <= 0
         {
-            return Color::ZERO
+            return Color::splat(0.5);
         }
 
         // check hit
         if let Some(hit_record) = world.hit(r, Interval::new(0.001, f64::INFINITY)) {
             // successful hit: scatter ray based on the material of the hit surface
             return match hit_record.material.scatter(r, &hit_record) {
-                Some((scattered_ray, attenuation)) => { attenuation * Self::ray_color(&scattered_ray, bounce_num - 1, world) }
+                Some((scattered_ray, attenuation)) => {
+                    return attenuation * Self::ray_color(&scattered_ray, bounce_num - 1, world)
+                }
                 None => { Color::ZERO } // absorbed
             }
 
