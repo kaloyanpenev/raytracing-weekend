@@ -1,3 +1,4 @@
+use std::ops::Neg;
 use std::time::Instant;
 use glam::{DVec3, FloatExt};
 use indicatif::ProgressBar;
@@ -9,34 +10,55 @@ use crate::Color;
 
 pub struct Camera {
     image_size: (i32, i32),
-    camera_center: DVec3,
+    camera_position: DVec3,
     pixel_delta_uv: (DVec3, DVec3),
     pixel00_loc: DVec3,
     samples_per_pixel: i32,
-    max_bounces: i32
+    max_bounces: i32,
+
+    // unused fields but are listed in the book as member vars
+    // vertical_fov: f64 // degrees
+    // forward_vec: DVec3,
+    // right_vec: DVec3,
+    // up_vec: DVec3
 }
 
 impl Camera {
-    pub fn new(aspect_ratio: f64, image_width: i32, samples_per_pixel: i32, max_bounces: i32) -> Self{
+    pub fn new(aspect_ratio: f64,
+               image_width: i32,
+               samples_per_pixel: i32,
+               max_bounces: i32,
+               vertical_fov: f64,
+               camera_position: DVec3,
+               camera_image_plane_position: DVec3,
+               world_up_vec: DVec3) -> Self{
         // image
         let image_size = Self::get_image_size(aspect_ratio, image_width).expect("image_height can't be less than 1");
 
         //camera
-        let focal_length = 1.0;
-        let viewport_height = 2.0;
-        let viewport_size = Self::get_viewport_size(image_size, viewport_height);
-        let viewport_width = viewport_size.0;
-        let camera_center = DVec3::ZERO;
-        let viewport_u = DVec3::new(viewport_width, 0., 0.);
-        let viewport_v = DVec3::new(0., -viewport_height, 0.);
+        let focal_length = (camera_position - camera_image_plane_position).length();
+        let theta = vertical_fov.to_radians();
+        let half_sensor_size_to_focal_length_ratio = (theta*0.5).tan();
+        let viewport_height = 2.0 * half_sensor_size_to_focal_length_ratio * focal_length;
+        let viewport_width = viewport_height * (image_size.0 as f64 / image_size.1 as f64);
+
+
+        let camera_center = camera_position;
+
+        let forward_vec = (camera_position - camera_image_plane_position).normalize();
+        let right_vec = world_up_vec.cross(forward_vec).normalize();
+        let up_vec = forward_vec.cross(right_vec);
+
+        let viewport_u = viewport_width * right_vec;
+        let viewport_v = viewport_height * up_vec.neg();
 
         let pixel_delta_u = viewport_u / image_size.0 as f64;
         let pixel_delta_v = viewport_v / image_size.1 as f64;
 
-        let viewport_upper_left = camera_center - DVec3::new(0., 0., focal_length) - viewport_u / 2. - viewport_v / 2.;
+        let viewport_upper_left = camera_center - (focal_length * forward_vec) - viewport_u / 2. - viewport_v / 2.;
         let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
-        Self{image_size, camera_center, pixel_delta_uv: (pixel_delta_u, pixel_delta_v), pixel00_loc, samples_per_pixel, max_bounces }
+        Self{image_size, camera_position: camera_center, pixel_delta_uv: (pixel_delta_u, pixel_delta_v), pixel00_loc, samples_per_pixel, max_bounces }
     }
 
     fn ray_color(r: &Ray, bounce_num: i32, world: &impl Hittable) -> Color {
@@ -102,7 +124,7 @@ impl Camera {
         // point around the pixel location i, j.
         let offset = Self::sample_square();
         let pixel_sample = self.pixel00_loc + (u_pixel as f64 + offset.x) * self.pixel_delta_uv.0 + (v_pixel as f64 + offset.y) * self.pixel_delta_uv.1;
-        let ray_origin = self.camera_center;
+        let ray_origin = self.camera_position;
         let ray_direction = pixel_sample - ray_origin;
 
         Ray::new(ray_origin, ray_direction)
@@ -133,12 +155,6 @@ impl Camera {
         else {
             Some((image_width, image_height))
         }
-    }
-
-    fn get_viewport_size(image_size: (i32, i32), viewport_height: f64) -> (f64, f64)
-    {
-        let viewport_width = viewport_height * (image_size.0 as f64 / image_size.1 as f64);
-        (viewport_width, viewport_height)
     }
 
 }
