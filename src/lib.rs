@@ -1,6 +1,5 @@
 use glam::DVec3;
 
-#[allow(dead_code)]
 pub mod geo;
 pub mod ray;
 pub mod camera;

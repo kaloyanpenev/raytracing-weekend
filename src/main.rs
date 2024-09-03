@@ -34,10 +34,12 @@ fn main() {
     let world : Box<HittableList> = Box::new(HittableList::new(vec![sphere_floor, sphere1, sphere2, sphere3, sphere4]));
 
     let camera = Camera::new(16.0 / 9.0, // aspect_ratio
-                             1200, // image_width
-                             500, // samples_per_pixel
-                             50, // max_bounces
+                             400, // image_width
+                             100, // samples_per_pixel
+                             10, // max_bounces
                              30.0, // vertical_fov
+                             10.0,
+                             3.4,
                              DVec3::new(-2.0, 2.0, 1.0), // camera position
                              DVec3::new(0.0, 0.0, -1.0), // camera image plane position
                              DVec3::new(0.0, 1.0, 0.0)); // world up vector
